@@ -2,8 +2,9 @@ import os
 import sys
 import operator
 import importlib
+import asyncio
 import json
-import praw
+import asyncpraw
 import psaw
 import googleapiclient.discovery
 import googleapiclient.errors
@@ -47,7 +48,7 @@ def reddit_init():
     config = os.path.join(workpath, 'config', 'reddit.json')
     with open(config, "r") as jsonfile:
         reddit_config = json.load(jsonfile)
-    reddit = praw.Reddit(client_id=reddit_config['client_id'],
+    reddit = asyncpraw.Reddit(client_id=reddit_config['client_id'],
                          client_secret=reddit_config['client_secret'],
                          user_agent=reddit_config['user_agent'],
                          password=reddit_config['password'],
@@ -70,12 +71,34 @@ def discord_init():
                          username=discord_config['webhook_user'])
     return discord
 
-workpath = workpath_init()
-youtube = youtube_init()
-discord = discord_init()
-reddit, pushift, monitored_sub = reddit_init()
-submission_plugins, comment_plugins, report_plugins = plugin_init()
+async def submission_loop(reddit, youtube, discord, monitored_sub):
+    subreddit = await reddit.subreddit(monitored_sub)
+    async for submission in subreddit.stream.submissions(skip_existing=True):
+        for plugin in submission_plugins:
+            print(submission.selftext)
+            plugin.run_rules(reddit, youtube, discord, monitored_sub, submission)      
+            
+async def comment_loop(reddit, youtube, discord, monitored_sub):
+    subreddit = await reddit.subreddit(monitored_sub)
+    async for comment in subreddit.stream.comments(skip_existing=True):
+        for plugin in submission_plugins:
+            print(comment.body)
+            plugin.run_rules(reddit, youtube, discord, monitored_sub, comment)   
 
-for plugin in submission_plugins:
-    plugin.run_rules(reddit, youtube)
+async def main():
+    await asyncio.gather(submission_loop(reddit, youtube, discord, monitored_sub), 
+                         comment_loop(reddit, youtube, discord, monitored_sub))
+
+if __name__ == "__main__":
+    workpath = workpath_init()
+    youtube = youtube_init()
+    discord = discord_init()
+    reddit, pushift, monitored_sub = reddit_init()
+    submission_plugins, comment_plugins, report_plugins = plugin_init()
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(main())
+    
+
+
+
     

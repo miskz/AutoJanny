@@ -1,4 +1,4 @@
-import praw
+import asyncpraw
 import psaw
 import googleapiclient.discovery
 import discord_webhook
@@ -18,7 +18,7 @@ class AutoJannyPlugin:
         for arg in args:
             print(arg)
             match arg:
-                case praw.Reddit():
+                case asyncpraw.Reddit():
                     reddit = arg
                 case psaw.PushshiftAPI():
                     pushift = arg
@@ -26,11 +26,11 @@ class AutoJannyPlugin:
                     youtube = arg
                 case discord_webhook.DiscordWebhook():
                     discord = arg
-                case praw.models.reddit.subreddit.Subreddit():
+                case asyncpraw.models.reddit.subreddit.Subreddit():
                     subreddit = arg
-                case praw.models.reddit.submission.Submission():
+                case asyncpraw.models.reddit.submission.Submission():
                     submission = arg
-                case praw.models.reddit.comment.Comment():
+                case asyncpraw.models.reddit.comment.Comment():
                     comment = arg
                 case str():
                     workpath = arg
