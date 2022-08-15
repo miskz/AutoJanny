@@ -1,22 +1,31 @@
+import os
+import json
+from queue import PriorityQueue
 import asyncpraw
 import psaw
 import googleapiclient.discovery
 import discord_webhook
 
+def plugin_config_init(workpath):
+    config = os.path.join(workpath, 'config', 'dummy_plugin.json')
+    with open(config, "r") as jsonfile:
+        plugin_config = json.load(jsonfile)
+    return plugin_config['priority']   
+
 class AutoJannyPlugin:
     
     name = 'Dummy Plugin'
     description = 'Dummy plugin to use as a template and for development.'
-    priority = 0
     
     # valid types are: submission, comment, report
-    plugin_type = 'submission'
+    plugin_type = 'comment'
+    priority = 0
     
-    def __init__(self):
+    def __init__(self, workpath):
         data = []
+        self.priority = plugin_config_init(workpath)
     def run_rules(*args):
         for arg in args:
-            print(arg)
             match arg:
                 case asyncpraw.Reddit():
                     reddit = arg
@@ -36,4 +45,3 @@ class AutoJannyPlugin:
                     workpath = arg
                 case _:
                     print('I don''t know this kind of argument, dude: ' + arg)
-        print('plugin loaded with arguments')

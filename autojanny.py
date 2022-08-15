@@ -30,6 +30,7 @@ def plugin_init():
         if "__" not in plugin_path:
             try:
                 plugin = getattr(importlib.import_module(plugin_path), 'AutoJannyPlugin')
+                plugin(workpath)
                 match plugin.plugin_type:
                     case 'submission':
                         submission_plugins.append(plugin)

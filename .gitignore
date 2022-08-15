@@ -133,6 +133,5 @@ dmypy.json
 .pyre/
 
 # Configs
-reddit.json
-discord.json
-service_key.json
+*.json
+!*-example.json
