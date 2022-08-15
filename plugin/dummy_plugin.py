@@ -1,6 +1,6 @@
 import os
 import json
-from queue import PriorityQueue
+import asyncio
 import asyncpraw
 import psaw
 import googleapiclient.discovery
@@ -24,24 +24,9 @@ class AutoJannyPlugin:
     def __init__(self, workpath):
         data = []
         self.priority = plugin_config_init(workpath)
-    def run_rules(*args):
-        for arg in args:
-            match arg:
-                case asyncpraw.Reddit():
-                    reddit = arg
-                case psaw.PushshiftAPI():
-                    pushift = arg
-                case googleapiclient.discovery.Resource():
-                    youtube = arg
-                case discord_webhook.DiscordWebhook():
-                    discord = arg
-                case asyncpraw.models.reddit.subreddit.Subreddit():
-                    subreddit = arg
-                case asyncpraw.models.reddit.submission.Submission():
-                    submission = arg
-                case asyncpraw.models.reddit.comment.Comment():
-                    comment = arg
-                case str():
-                    workpath = arg
-                case _:
-                    print('I don''t know this kind of argument, dude: ' + arg)
+    
+    # possible input kwargs are reddit, pushift, youtube, discord, subreddit, submission, comment, workpath
+    # **_ discards unexpected arguments so that we don't have to store them for separate threads
+    async def run_rules(reddit, comment, **_):
+        stop = True
+        return stop

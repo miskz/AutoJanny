@@ -76,19 +76,28 @@ async def submission_loop(reddit, youtube, discord, monitored_sub):
     subreddit = await reddit.subreddit(monitored_sub)
     async for submission in subreddit.stream.submissions(skip_existing=True):
         for plugin in submission_plugins:
-            print(submission.selftext)
-            plugin.run_rules(reddit, youtube, discord, monitored_sub, submission)      
+            stop = await plugin.run_rules(reddit=reddit, youtube=youtube, discord=discord, monitored_sub=monitored_sub, submission=submission)
+            if stop: break
             
 async def comment_loop(reddit, youtube, discord, monitored_sub):
     subreddit = await reddit.subreddit(monitored_sub)
     async for comment in subreddit.stream.comments(skip_existing=True):
+        print(comment.body)
         for plugin in submission_plugins:
-            print(comment.body)
-            plugin.run_rules(reddit, youtube, discord, monitored_sub, comment)   
+            stop = await plugin.run_rules(reddit=reddit, youtube=youtube, discord=discord, monitored_sub=monitored_sub, comment=comment)
+            if stop: break
+            
+async def report_loop(reddit, youtube, discord, monitored_sub):
+    subreddit = await reddit.subreddit(monitored_sub)
+    async for report in subreddit.mod.stream.reports(only = "submissions"):
+        for plugin in report_plugins:
+            stop = await plugin.run_rules(reddit=reddit, youtube=youtube, discord=discord, monitored_sub=monitored_sub, submission=report)
+            if stop: break   
 
 async def main():
     await asyncio.gather(submission_loop(reddit, youtube, discord, monitored_sub), 
-                         comment_loop(reddit, youtube, discord, monitored_sub))
+                         comment_loop(reddit, youtube, discord, monitored_sub),
+                         report_loop(reddit, youtube, discord, monitored_sub))
 
 if __name__ == "__main__":
     workpath = workpath_init()
@@ -96,10 +105,7 @@ if __name__ == "__main__":
     discord = discord_init()
     reddit, pushift, monitored_sub = reddit_init()
     submission_plugins, comment_plugins, report_plugins = plugin_init()
+    # will throw deprecation warning but fix requires changes to asyncpraw itself
     loop = asyncio.get_event_loop()
     loop.run_until_complete(main())
-    
-
-
-
     
