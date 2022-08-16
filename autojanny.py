@@ -19,32 +19,6 @@ def workpath_init():
         workpath = os.getcwd()
     return workpath
 
-def plugin_init():
-    submission_plugins = []
-    comment_plugins = []
-    report_plugins = []
-    plugin_dir = os.path.join(workpath, 'plugin')
-    plugin_files = next(os.walk(plugin_dir))[2]
-    for plugin_file in plugin_files:
-        plugin_path = 'plugin.' + plugin_file[:-3]
-        if "__" not in plugin_path:
-            try:
-                plugin = getattr(importlib.import_module(plugin_path), 'AutoJannyPlugin')
-                plugin(workpath)
-                match plugin.plugin_type:
-                    case 'submission':
-                        submission_plugins.append(plugin)
-                    case 'comment':
-                        comment_plugins.append(plugin)
-                    case 'report':
-                        report_plugins.append(plugin)
-            except:
-                print(plugin_path + 'does not appear to be a valid plugin')
-    submission_plugins.sort(key = operator.attrgetter('priority'))
-    comment_plugins.sort(key = operator.attrgetter('priority'))
-    report_plugins.sort(key = operator.attrgetter('priority'))
-    return submission_plugins, comment_plugins, report_plugins
-                
 def reddit_init():
     config = os.path.join(workpath, 'config', 'reddit.json')
     with open(config, "r") as jsonfile:
@@ -72,32 +46,80 @@ def discord_init():
                          username=discord_config['webhook_user'])
     return discord
 
-async def submission_loop(reddit, youtube, discord, monitored_sub):
+def plugin_init():
+    submission_plugins = []
+    comment_plugins = []
+    report_plugins = []
+    plugin_dir = os.path.join(workpath, 'plugin')
+    plugin_files = next(os.walk(plugin_dir))[2]
+    for plugin_file in plugin_files:
+        plugin_path = 'plugin.' + plugin_file[:-3]
+        if "__" not in plugin_path:
+            try:
+                plugin = getattr(importlib.import_module(plugin_path), 'AutoJannyPlugin')
+                plugin = plugin(workpath=workpath, reddit=reddit, youtube=youtube, discord=discord)
+                match plugin.plugin_type:
+                    case 'submission':
+                        submission_plugins.append(plugin)
+                    case 'comment':
+                        comment_plugins.append(plugin)
+                    case 'report':
+                        report_plugins.append(plugin)
+            except:
+                print(plugin_path + ' does not appear to be a valid plugin')
+    submission_plugins.sort(key = operator.attrgetter('priority'))
+    comment_plugins.sort(key = operator.attrgetter('priority'))
+    report_plugins.sort(key = operator.attrgetter('priority'))
+    print('sub plugins: ', submission_plugins)
+    print('comment plugins: ', comment_plugins)
+    print('report plugins: ', report_plugins)
+    return submission_plugins, comment_plugins, report_plugins
+
+def database_init():
+    database_plugins = []
+    database_dir = os.path.join(workpath, 'database')
+    plugin_files = next(os.walk(database_dir))[2]
+    for plugin_file in plugin_files:
+        plugin_path = 'database.' + plugin_file[:-3]
+        if "__" not in plugin_path:
+            try:
+                plugin = getattr(importlib.import_module(plugin_path), 'AutoJannyDatabase')
+                plugin = plugin(workpath)
+                database_plugins.append(plugin)
+            except:
+                print(plugin_path + ' does not appear to be a valid database plugin')
+    if len(database_plugins) == 1:
+        return database_plugins[0]
+    else:
+        print('None or more than one DB plugins detected, make up your mind, dude.') 
+
+async def submission_loop(monitored_sub):
     subreddit = await reddit.subreddit(monitored_sub)
     async for submission in subreddit.stream.submissions(skip_existing=True):
+        database.add_submission(submission)
         for plugin in submission_plugins:
-            stop = await plugin.run_rules(reddit=reddit, youtube=youtube, discord=discord, monitored_sub=monitored_sub, submission=submission)
+            stop = await plugin.run_rules(monitored_sub, submission)
             if stop: break
             
-async def comment_loop(reddit, youtube, discord, monitored_sub):
+async def comment_loop(monitored_sub):
     subreddit = await reddit.subreddit(monitored_sub)
     async for comment in subreddit.stream.comments(skip_existing=True):
-        print(comment.body)
+        database.add_comment(comment)
         for plugin in submission_plugins:
-            stop = await plugin.run_rules(reddit=reddit, youtube=youtube, discord=discord, monitored_sub=monitored_sub, comment=comment)
+            stop = await plugin.run_rules(monitored_sub, comment)
             if stop: break
             
-async def report_loop(reddit, youtube, discord, monitored_sub):
+async def report_loop(monitored_sub):
     subreddit = await reddit.subreddit(monitored_sub)
     async for report in subreddit.mod.stream.reports(only = "submissions"):
         for plugin in report_plugins:
-            stop = await plugin.run_rules(reddit=reddit, youtube=youtube, discord=discord, monitored_sub=monitored_sub, submission=report)
+            stop = await plugin.run_rules(monitored_sub, report)
             if stop: break   
 
 async def main():
-    await asyncio.gather(submission_loop(reddit, youtube, discord, monitored_sub), 
-                         comment_loop(reddit, youtube, discord, monitored_sub),
-                         report_loop(reddit, youtube, discord, monitored_sub))
+    await asyncio.gather(submission_loop(monitored_sub), 
+                         comment_loop(monitored_sub),
+                         report_loop(monitored_sub))
 
 if __name__ == "__main__":
     workpath = workpath_init()
@@ -105,6 +127,8 @@ if __name__ == "__main__":
     discord = discord_init()
     reddit, pushift, monitored_sub = reddit_init()
     submission_plugins, comment_plugins, report_plugins = plugin_init()
+    database = database_init()
+    database.table_init()
     # will throw deprecation warning but fix requires changes to asyncpraw itself
     loop = asyncio.get_event_loop()
     loop.run_until_complete(main())
