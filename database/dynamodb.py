@@ -4,6 +4,7 @@ from boto3.dynamodb.conditions import Attr
 import json
 import pandas
 from decimal import Decimal
+import time
 
 def plugin_config_init(workpath):
     config = os.path.join(workpath, 'config', 'dynamodb.json')
@@ -57,13 +58,13 @@ class AutoJannyDatabase:
                     'WriteCapacityUnits': 5
                 }
             )
-            print("creating comment table")
+            print("DynamoDB: Creating comment table")
             waiter = self.client.get_waiter('table_exists')
             waiter.wait(TableName=self.comment_table_name)
-            print("table created")     
+            print("DynamoDB: Table created")     
         except:
             self.comment_table = self.dynamodb.Table(self.comment_table_name)
-            print("comment table exists")
+            print("DynamoDB: Connected to existing comments table")
             
         try:
             self.submission_table = self.client.create_table(
@@ -93,13 +94,13 @@ class AutoJannyDatabase:
                     'WriteCapacityUnits': 2
                 }
             )
-            print("creating submission table")
+            print("DynamoDB: Creating submission table")
             waiter = self.client.get_waiter('table_exists')
             waiter.wait(TableName=self.submission_table_name)
-            print("table created")     
+            print("DynamoDB: Table created")     
         except:
             self.submission_table = self.dynamodb.Table(self.submission_table_name)
-            print("submission table exists")
+            print("DynamoDB: Connected to existing submissions table")
             
     def add_comment(self, comment):
         self.comment_table.put_item(
@@ -125,13 +126,13 @@ class AutoJannyDatabase:
             }
         )
         
-    def get_comments(self, author):
-        comment_scan = self.comment_table.scan(FilterExpression=Attr('author').eq(author))
+    def get_comments(self, author, timeframe=31556926):
+        comment_scan = self.comment_table.scan(FilterExpression=Attr('author').eq(author) & Attr('created_utc').gte(Decimal(time.time() - timeframe)))
         comments = pandas.DataFrame(comment_scan['Items'])
         return comments
         
-    def get_submissions(self, author):
-        submission_scan = self.submission_table.scan(FilterExpression=Attr('author').eq(author))
+    def get_submissions(self, author, timeframe=31556926):
+        submission_scan = self.submission_table.scan(FilterExpression=Attr('author').eq(author) & Attr('created_utc').gte(Decimal(time.time() - timeframe)))
         submissions = pandas.DataFrame(submission_scan['Items'])
         return submissions
-    
+

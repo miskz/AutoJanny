@@ -57,7 +57,7 @@ def plugin_init():
         if "__" not in plugin_path:
             try:
                 plugin = getattr(importlib.import_module(plugin_path), 'AutoJannyPlugin')
-                plugin = plugin(workpath=workpath, reddit=reddit, youtube=youtube, discord=discord)
+                plugin = plugin(workpath=workpath, reddit=reddit, youtube=youtube, discord=discord, database=database)
                 match plugin.plugin_type:
                     case 'submission':
                         submission_plugins.append(plugin)
@@ -70,9 +70,10 @@ def plugin_init():
     submission_plugins.sort(key = operator.attrgetter('priority'))
     comment_plugins.sort(key = operator.attrgetter('priority'))
     report_plugins.sort(key = operator.attrgetter('priority'))
-    print('sub plugins: ', submission_plugins)
-    print('comment plugins: ', comment_plugins)
-    print('report plugins: ', report_plugins)
+    print('Reddit plugins loaded')
+    print('Submissions: ', submission_plugins)
+    print('Comments: ', comment_plugins)
+    print('Reports: ', report_plugins)
     return submission_plugins, comment_plugins, report_plugins
 
 def database_init():
@@ -89,6 +90,7 @@ def database_init():
             except:
                 print(plugin_path + ' does not appear to be a valid database plugin')
     if len(database_plugins) == 1:
+        print('Database plugin loaded: ' + database_plugins[0].name)
         return database_plugins[0]
     else:
         print('None or more than one DB plugins detected, make up your mind, dude.') 
@@ -98,22 +100,24 @@ async def submission_loop(monitored_sub):
     async for submission in subreddit.stream.submissions(skip_existing=True):
         database.add_submission(submission)
         for plugin in submission_plugins:
-            stop = await plugin.run_rules(monitored_sub, submission)
+            print('Executing plugin ' + plugin.name + ' against ' + submission.permalink)
+            stop = await plugin.run_rules(monitored_sub=monitored_sub, submissio=submission)
             if stop: break
             
 async def comment_loop(monitored_sub):
     subreddit = await reddit.subreddit(monitored_sub)
     async for comment in subreddit.stream.comments(skip_existing=True):
         database.add_comment(comment)
-        for plugin in submission_plugins:
-            stop = await plugin.run_rules(monitored_sub, comment)
+        for plugin in comment_plugins:
+            print('Executing plugin ' + plugin.name + ' against ' + comment.permalink)
+            stop = await plugin.run_rules(monitored_su=monitored_sub, comment=comment)
             if stop: break
             
 async def report_loop(monitored_sub):
     subreddit = await reddit.subreddit(monitored_sub)
     async for report in subreddit.mod.stream.reports(only = "submissions"):
         for plugin in report_plugins:
-            stop = await plugin.run_rules(monitored_sub, report)
+            stop = await plugin.run_rules(monitored_sub=monitored_sub, report=report)
             if stop: break   
 
 async def main():
@@ -126,9 +130,9 @@ if __name__ == "__main__":
     youtube = youtube_init()
     discord = discord_init()
     reddit, pushift, monitored_sub = reddit_init()
-    submission_plugins, comment_plugins, report_plugins = plugin_init()
     database = database_init()
     database.table_init()
+    submission_plugins, comment_plugins, report_plugins = plugin_init()
     # will throw deprecation warning but fix requires changes to asyncpraw itself
     loop = asyncio.get_event_loop()
     loop.run_until_complete(main())

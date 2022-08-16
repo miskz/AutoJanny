@@ -21,15 +21,13 @@ class AutoJannyPlugin:
     plugin_type = 'comment'
     priority = 0
 
+    # possible input kwargs are reddit, pushift, youtube, discord, subreddit, submission, comment, workpath. datanbase
     # **_ discards unexpected arguments so that we don't have to store them for separate threads    
-    def __init__(self, workpath, reddit, **_):
+    def __init__(self, workpath, **_):
         data = []
         self.priority = plugin_config_init(workpath)
-        self.reddit = reddit
-    
-    # possible input kwargs are reddit, pushift, youtube, discord, subreddit, submission, comment, workpath
 
-    async def run_rules(self, comment):
+    async def run_rules(self, comment, **_):
         stop = True
         print(self.name + ': processed')
         return stop
