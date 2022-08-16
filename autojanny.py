@@ -101,7 +101,7 @@ async def submission_loop(monitored_sub):
         database.add_submission(submission)
         for plugin in submission_plugins:
             print('Executing plugin ' + plugin.name + ' against ' + submission.permalink)
-            stop = await plugin.run_rules(monitored_sub=monitored_sub, submissio=submission)
+            stop = await plugin.run_rules(monitored_sub=monitored_sub, submission=submission)
             if stop: break
             
 async def comment_loop(monitored_sub):
