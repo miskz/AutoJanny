@@ -134,7 +134,7 @@ class AutoJannyDatabase:
     
     def get_comment(self, author=None, created_utc=None, id=None, **_):
         if created_utc is not None:
-            filtering_exp = Key('author').eq(author) & Key('created_utc').eq(created_utc)
+            filtering_exp = Key('author').eq(author) & Key('created_utc').eq(int(created_utc))
             comment = self.comment_table.query(KeyConditionExpression=filtering_exp)
         elif created_utc is None and author is not None and id is not None:
             filtering_exp = Key('author').eq(author) & Attr('id').eq(id)
@@ -153,7 +153,7 @@ class AutoJannyDatabase:
     
     def get_submission(self, author=None, created_utc=None, id=None, **_):
         if created_utc is not None:
-            filtering_exp = Key('author').eq(author) & Key('created_utc').eq(created_utc)
+            filtering_exp = Key('author').eq(author) & Key('created_utc').eq(int(created_utc))
             submission = self.submission_table.query(KeyConditionExpression=filtering_exp)
         elif created_utc is None and author is not None and id is not None:
             filtering_exp = Key('author').eq(author) & Attr('id').eq(id)
@@ -173,7 +173,7 @@ class AutoJannyDatabase:
             self.comment_table.update_item(
                 Key={
                     'author': author,
-                    'created_utc': created_utc
+                    'created_utc': int(created_utc)
                 },
                 UpdateExpression= 'set #body = :body',
                 ExpressionAttributeNames={
@@ -195,7 +195,7 @@ class AutoJannyDatabase:
             self.comment_table.update_item(
                 Key={
                     'author': author,
-                    'created_utc': created_utc
+                    'created_utc': int(created_utc)
                 },
                 UpdateExpression= 'set #selftext = :selftext',
                 ExpressionAttributeNames={

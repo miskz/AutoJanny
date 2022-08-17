@@ -98,6 +98,7 @@ def database_init():
 async def submission_loop(monitored_sub):
     subreddit = await reddit.subreddit(monitored_sub)
     async for submission in subreddit.stream.submissions(skip_existing=True):
+        print('new submission: ' + submission.permalink)
         database.add_submission(submission)
         for plugin in submission_plugins:
             print('Executing plugin ' + plugin.name + ' against ' + submission.permalink)
@@ -107,6 +108,7 @@ async def submission_loop(monitored_sub):
 async def comment_loop(monitored_sub):
     subreddit = await reddit.subreddit(monitored_sub)
     async for comment in subreddit.stream.comments(skip_existing=True):
+        print('new comment: ' + comment.permalink)
         database.add_comment(comment)
         for plugin in comment_plugins:
             print('Executing plugin ' + plugin.name + ' against ' + comment.permalink)
@@ -115,15 +117,26 @@ async def comment_loop(monitored_sub):
             
 async def report_loop(monitored_sub):
     subreddit = await reddit.subreddit(monitored_sub)
-    async for report in subreddit.mod.stream.reports(only = "submissions"):
+    async for report in subreddit.mod.stream.reports(skip_existing=True, only = "submissions"):
+        print('new report: ' + report.permalink)
         for plugin in report_plugins:
             stop = await plugin.run_rules(monitored_sub=monitored_sub, report=report)
             if stop: break   
+            
+async def edited_loop(monitored_sub):
+    subreddit = await reddit.subreddit(monitored_sub)
+    async for edit in subreddit.mod.stream.edited(skip_existing=True):
+        print('edited content: ' + edit.permalink)
+        try:
+            database.update_comment(author=edit.author.name, created_utc=edit.created_utc, body=edit.body)
+        except:
+            database.update_submission(author=edit.author.name, created_utc=edit.created_utc, selftext=edit.selftext)
 
 async def main():
     await asyncio.gather(submission_loop(monitored_sub), 
                          comment_loop(monitored_sub),
-                         report_loop(monitored_sub))
+                         report_loop(monitored_sub),
+                         edited_loop(monitored_sub))
 
 if __name__ == "__main__":
     workpath = workpath_init()

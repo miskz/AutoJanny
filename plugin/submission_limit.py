@@ -28,7 +28,7 @@ class AutoJannyPlugin:
         stop = False
         print('running rule ' + self.name)
         if self.mode != 'reddit':
-            result = len(self.database.get_submissions(submission.author.name, self.timeframe_seconds))
+            result = len(self.database.search_submissions(submission.author.name, self.timeframe_seconds))
         elif self.mode != 'db' and result <= 5:
             for post in submission.author.submissions.new():
                 if post.created_utc > time.time() - self.timeframe_seconds:
@@ -40,5 +40,7 @@ class AutoJannyPlugin:
             stop = True
             submission.mod.remove()
             submission.mod.send_removal_message(self.removal_message, type='public')
+            
+        print(self.name + ': processed')
             
         return stop
