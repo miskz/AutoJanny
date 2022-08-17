@@ -3,7 +3,7 @@ import json
 import time
 
 def plugin_config_init(workpath):
-    config = os.path.join(workpath, 'config', 'submission_limit.json')
+    config = os.path.join(workpath, 'plugin', 'config', 'submission_limit.json')
     with open(config, "r") as jsonfile:
         plugin_config = json.load(jsonfile)
     return plugin_config['priority'], plugin_config['submissions_no'], plugin_config['timeframe_seconds'], \

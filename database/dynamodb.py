@@ -62,10 +62,11 @@ class AutoJannyDatabase:
             print('DynamoDB: Creating comment table')
             waiter = self.client.get_waiter('table_exists')
             waiter.wait(TableName=self.comment_table_name)
-            print('DynamoDB: Table created and connected to')     
+            print('DynamoDB: Table created')     
         except:
-            self.comment_table = self.dynamodb.Table(self.comment_table_name)
-            print('DynamoDB: Connected to existing comments table')
+            print('DynamoDB: Table already exists')
+        self.comment_table = self.dynamodb.Table(self.comment_table_name)
+        print('DynamoDB: Connected to comment table')
             
         try:
             self.submission_table = self.client.create_table(
@@ -98,10 +99,11 @@ class AutoJannyDatabase:
             print('DynamoDB: Creating submission table')
             waiter = self.client.get_waiter('table_exists')
             waiter.wait(TableName=self.submission_table_name)
-            print('DynamoDB: Table created and connected to')     
+            print('DynamoDB: Table created')     
         except:
-            self.submission_table = self.dynamodb.Table(self.submission_table_name)
-            print('DynamoDB: Connected to existing submissions table')
+            print('DynamoDB: Table already exists')
+        self.submission_table = self.dynamodb.Table(self.submission_table_name)
+        print('DynamoDB: Connected to submission table')
             
     def add_comment(self, comment):
         self.comment_table.put_item(
@@ -111,7 +113,8 @@ class AutoJannyDatabase:
                 'created_utc': int(comment.created_utc),
                 'link_id': comment.link_id,
                 'parent_id': comment.parent_id,
-                'body': [comment.body]
+                'body': [comment.body],
+                'version': int(0)
             }
         )
         
@@ -124,6 +127,7 @@ class AutoJannyDatabase:
                 'title': submission.title,
                 'url': submission.url,
                 'selftext': [submission.selftext],
+                'version': int(0)
             }
         )
     
@@ -169,18 +173,21 @@ class AutoJannyDatabase:
         comment = self.get_comment(author=author, created_utc=created_utc)
         if comment != []:
             comment_body = comment[0]['body']
+            version = comment[0]['version'] + 1
             comment_body.append(body)
             self.comment_table.update_item(
                 Key={
                     'author': author,
                     'created_utc': int(created_utc)
                 },
-                UpdateExpression= 'set #body = :body',
+                UpdateExpression= 'set #body = :body, #version = :version',
                 ExpressionAttributeNames={
-                    '#body': 'body'
+                    '#body': 'body',
+                    '#version': 'version'
                 },
                 ExpressionAttributeValues={
-                    ':body': comment_body
+                    ':body': comment_body,
+                    ':version': int(version)
                 },
                 ReturnValues='UPDATED_NEW'
             )
@@ -191,18 +198,21 @@ class AutoJannyDatabase:
         submission = self.get_comment(author=author, created_utc=created_utc)
         if submission != []:
             submission_selftext = submission[0]['selftext']
+            version = submission[0]['version'] + 1
             submission_selftext.append(selftext)
             self.comment_table.update_item(
                 Key={
                     'author': author,
                     'created_utc': int(created_utc)
                 },
-                UpdateExpression= 'set #selftext = :selftext',
+                UpdateExpression= 'set #selftext = :selftext, #version = :version',
                 ExpressionAttributeNames={
-                    '#selftext': 'selftext'
+                    '#selftext': 'selftext',
+                    '#version': 'version'
                 },
                 ExpressionAttributeValues={
-                    ':selftext': submission_selftext
+                    ':selftext': submission_selftext,
+                    ':version': int(version)
                 },
                 ReturnValues='UPDATED_NEW'
             )

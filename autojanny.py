@@ -57,7 +57,7 @@ def plugin_init():
         if "__" not in plugin_path:
             try:
                 plugin = getattr(importlib.import_module(plugin_path), 'AutoJannyPlugin')
-                plugin = plugin(workpath=workpath, reddit=reddit, youtube=youtube, discord=discord, database=database)
+                plugin = plugin(workpath=workpath, reddit=reddit, youtube=youtube, discord=discord, database=database, pushift=pushift)
                 match plugin.plugin_type:
                     case 'submission':
                         submission_plugins.append(plugin)
@@ -101,7 +101,6 @@ async def submission_loop(monitored_sub):
         print('new submission: ' + submission.permalink)
         database.add_submission(submission)
         for plugin in submission_plugins:
-            print('Executing plugin ' + plugin.name + ' against ' + submission.permalink)
             stop = await plugin.run_rules(monitored_sub=monitored_sub, submission=submission)
             if stop: break
             

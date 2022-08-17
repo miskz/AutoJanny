@@ -1,13 +1,8 @@
 import os
 import json
-import asyncio
-import asyncpraw
-import psaw
-import googleapiclient.discovery
-import discord_webhook
 
 def plugin_config_init(workpath):
-    config = os.path.join(workpath, 'config', 'dummy_plugin.json')
+    config = os.path.join(workpath, 'plugin', 'config', 'dummy_plugin.json')
     with open(config, "r") as jsonfile:
         plugin_config = json.load(jsonfile)
     return plugin_config['priority']   
