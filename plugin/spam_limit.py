@@ -1,67 +1,136 @@
 import os
 import json
-import re
-import datefinder
-from datetime import datetime, timezone
-from time import time
 from thefuzz import fuzz
 
 def plugin_config_init(workpath):
-    config = os.path.join(workpath, 'plugin', 'config', 'submission_limit.json')
+    config = os.path.join(workpath, 'plugin', 'config', 'spam_limit.json')
     with open(config, "r") as jsonfile:
         plugin_config = json.load(jsonfile)
-    return plugin_config['priority'], plugin_config['submissions_no'], plugin_config['timeframe_seconds'], \
-        plugin_config['mode'], plugin_config['removal_message']
+        settings = {'priority': plugin_config['priority'],
+                    'mode': plugin_config['mode'],
+                    'views': plugin_config['views'],
+                    'age': plugin_config['age'],
+                    'repeatvid': plugin_config['repeatvid'],
+                    'repeattitle': plugin_config['repeattitle'],
+                    'report_newvid': plugin_config['report_newvid'],
+                    'report_repeatvid': plugin_config['report_repeatvid'],
+                    'report_unameurl': plugin_config['report_unameurl'],
+                    'report_repeattitle': plugin_config['report_repeattitle'],
+                    'removal_message': plugin_config['removal_message']
+                    }
+    return settings
 
 class AutoJannyPlugin:
     
-    name = 'Submission limit'
+    name = 'Spam limit'
     description = 'Enforces submissions per timeframe rules'
     
     plugin_type = 'submission'
-    priority = 0
+    priority = 5
  
-    def __init__(self, workpath, reddit, pushift, youtube, **_):
+    def __init__(self, workpath, reddit, youtube, **_):
         data = []
-        self.priority, self.submission_no, self.timeframe_seconds, self.mode, self.removal_message = plugin_config_init(workpath)
+        self.settings = plugin_config_init(workpath)
         self.reddit = reddit
-        self.pushift = pushift
         self.youtube = youtube
-
-    def get_youtube_id(self, submission):
-        youtube_id = re.search('(?:v=|.be/|shorts/|embed/)(.{11})', submission.url)
-        for match in youtube_id.groups():
-            if match is not None:
-                youtube_id = match
-        return youtube_id
-
-    def get_yt_details(self, youtube_id):
+        
+    async def check_yt_selfpromo(self, submission):
         try:
-            request = self.youtube.videos().list(part="snippet,statistics", id=youtube_id)
-            details = request.execute()
-            # returns lots of details with inconsistent variables by default, cleanup needed
-            details = details["items"][0]
-            datematches = datefinder.find_dates(details["snippet"]["publishedAt"])
-            for datematch in datematches:
-                publisheddate = datematch
-            age = datetime.now(timezone.utc) - publisheddate
-            details = {
-                'title': details["snippet"]["title"],
-                'channel': details["snippet"]["channelTitle"],
-                'description': details["snippet"]["description"],
-                'views': int(details["statistics"]["viewCount"]),
-                'published': publisheddate,
-                'age': age.days
-            }
-            return details
+            youtube_id = self.youtube.get_yt_id(submission.url)
+            if youtube_id is not None:
+                for match in youtube_id.groups():
+                    if match is not None:
+                        youtube_id = match
+                        video = self.youtube.get_yt_details(self.youtube, youtube_id)
+                        print(self.setttings['views'])
+                        if (
+                            video['views'] < self.settings['views']
+                            and video['age'] < self.settings['age']
+                        ):
+                            if self.mode == 'report':
+                                await submission.report(self.settings['report_newvid'])
+                            else:
+                                await submission.mod.remove()
+                                await submission.mod.send_removal_message(self.removal_message, type='public')
+                            return True
+                        else:
+                            return False
         except Exception as zonk:
-            print(f"Error while getting Youtube video details: {zonk}")
-    
-    def run_rules(self, submission, **_):
-        stop = False
-        print('running rule ' + self.name)
+            print(f"Error while doing Youtube promo check: {zonk}")
 
-            
+    async def check_url_selfpromo(self, submission):
+        try:
+            match = fuzz.token_sort_ratio(submission.author.name.lower(), submission.url.lower())
+            if (
+                len(submission.author.name) >= 8
+                and match > 80
+            ):
+                if self.mode == 'report':
+                    await submission.report(self.settings['report_unameurl'])
+                else:
+                    await submission.mod.remove()
+                    await submission.mod.send_removal_message(self.removal_message, type='public')
+                return True
+            else:
+                return False
+        except Exception as zonk:
+            print(f"Error while doing URL promo check: {zonk}")
+
+    async def check_yt_continuous_promo(self, submission):
+        try:
+            youtube_id = self.youtube.get_yt_id(submission.url)
+            if youtube_id is not None:
+                counter = 0
+                channel = ""
+                video = self.youtube.get_yt_details(youtube_id)
+                channel = video['channel']
+                async for post in self.reddit.submission(submission.id).author.submissions.new(limit=10):
+                    await post
+                    youtube_id = await self.youtube.get_yt_id(post.url)
+                    if youtube_id is not None:
+                        video = self.youtube.get_yt_details(self.youtube, youtube_id)
+                        if channel == video['channel']:
+                            counter += 1
+                    if counter >= self.settings['repeatvid']:
+                        if self.mode == 'report':
+                            await submission.report(self.settings['report_repeatvid'])
+                        else:
+                            await submission.mod.remove()
+                            await submission.mod.send_removal_message(self.removal_message, type='public')
+                        return True
+            else:
+                return False
+        except Exception as zonk:
+            print(f'Error while doing continuous spam promo check: {zonk}')
+
+    async def check_continuous_promo(self, submission):
+        try:
+            # apparently submission can't be used as generator unless initialized again?
+            await self.reddit.submission(submission.id)
+            counter = 0
+            title = ""
+            async for post in submission.author.submissions.new(limit=10):
+                title = post.title
+                if post.title == title:
+                    counter =+ 1
+            if counter >= self.settings['repeattitle']:
+                if self.mode == 'report':
+                    await submission.report(self.settings['report_newtitle'])
+                else:
+                    await submission.mod.remove()
+                    await submission.mod.send_removal_message(self.removal_message, type='public')
+                return True
+            else:
+                return False
+        except Exception as zonk:
+            print(f'Error while doing continuous spam promo check: {zonk}')
+        
+    async def run_rules(self, submission, **_):
+        stop = False
+        print('Running submission plugin ' + self.name)
+        if await self.check_yt_selfpromo(submission): stop = True
+        if ~stop and await self.check_url_selfpromo(submission): stop = True
+        if ~stop and await self.check_yt_continuous_promo(submission): stop = True
+        if ~stop and await self.check_continuous_promo(submission): stop = True
         print(self.name + ': processed')
-            
         return stop
