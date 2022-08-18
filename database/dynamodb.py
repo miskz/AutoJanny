@@ -59,14 +59,13 @@ class AutoJannyDatabase:
                     'WriteCapacityUnits': 5
                 }
             )
-            print('DynamoDB: Creating comment table')
+            print('├ Creating comment table')
             waiter = self.client.get_waiter('table_exists')
             waiter.wait(TableName=self.comment_table_name)
-            print('DynamoDB: Table created')     
+            print('├ Comment table created')     
         except:
-            print('DynamoDB: Table already exists')
+            print('├ Comment table already exists')
         self.comment_table = self.dynamodb.Table(self.comment_table_name)
-        print('DynamoDB: Connected to comment table')
             
         try:
             self.submission_table = self.client.create_table(
@@ -96,14 +95,14 @@ class AutoJannyDatabase:
                     'WriteCapacityUnits': 2
                 }
             )
-            print('DynamoDB: Creating submission table')
+            print('├ Creating submission table')
             waiter = self.client.get_waiter('table_exists')
             waiter.wait(TableName=self.submission_table_name)
-            print('DynamoDB: Table created')     
+            print('├ Submission table created')     
         except:
-            print('DynamoDB: Table already exists')
+            print('├ Submission table already exists')
         self.submission_table = self.dynamodb.Table(self.submission_table_name)
-        print('DynamoDB: Connected to submission table')
+        print('└ DynamoDB tables initialized succesfully')
             
     def add_comment(self, comment):
         self.comment_table.put_item(

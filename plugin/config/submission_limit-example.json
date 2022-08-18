@@ -1,0 +1,7 @@
+{
+  "priority": 0,
+  "submissions_no": 5,
+  "timeframe_seconds": 86400,
+  "mode": "db",
+  "removal_message": "Post limit exceeded, dude."
+}

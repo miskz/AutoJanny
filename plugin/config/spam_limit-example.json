@@ -1,0 +1,13 @@
+{
+  "priority": 0,
+  "mode": "report",
+  "views": 100,
+  "age": 7,
+  "repeatvid": 3,
+  "repeattitle": 3,
+  "report_newvid": "AutoJanny: New video, likely promo",
+  "report_repeatvid": "AutoJanny: Repeating video submission, likely promo",
+  "report_unameurl": "AutoJanny: Username in url, likely promo",
+  "report_repeattitle": "AutoJanny: Repeating title submission, likely promo",
+  "removal_message": "Promoting is against the rules here, dude."
+}

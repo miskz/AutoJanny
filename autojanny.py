@@ -4,6 +4,9 @@ import operator
 import importlib
 import asyncio
 import json
+import re
+from datetime import datetime, timezone
+import datefinder
 import asyncpraw
 import psaw
 import googleapiclient.discovery
@@ -38,6 +41,36 @@ def youtube_init():
     youtube = googleapiclient.discovery.build("youtube", "v3", credentials=credentials)
     return youtube
 
+def get_yt_id(url):
+    youtube_id = re.search('(?:v=|.be/|shorts/|embed/)(.{11})', url)
+    if youtube_id is not None:
+        for match in youtube_id.groups():
+            if match is not None:
+                youtube_id = match
+    return youtube_id
+
+def get_yt_details(youtube, youtube_id):
+    try:
+        request = youtube.videos().list(part="snippet,statistics", id=youtube_id)
+        details = request.execute()
+        # returns lots of details with inconsistent variables by default, cleanup needed
+        details = details["items"][0]
+        datematches = datefinder.find_dates(details["snippet"]["publishedAt"])
+        for datematch in datematches:
+            publisheddate = datematch
+        age = datetime.now(timezone.utc) - publisheddate
+        details = {
+            'title': details["snippet"]["title"],
+            'channel': details["snippet"]["channelTitle"],
+            'description': details["snippet"]["description"],
+            'views': int(details["statistics"]["viewCount"]),
+            'published': publisheddate,
+            'age': age.days
+        }
+        return details
+    except Exception as zonk:
+        print(f"Error while getting Youtube video details: {zonk}")
+
 def discord_init():
     config = os.path.join(workpath, 'config', 'discord.json')
     with open(config, "r") as jsonfile:
@@ -65,15 +98,16 @@ def plugin_init():
                         comment_plugins.append(plugin)
                     case 'report':
                         report_plugins.append(plugin)
-            except:
+            except Exception as zonk:
+                print('Error loading plugin: ' + zonk)
                 print(plugin_path + ' does not appear to be a valid plugin')
     submission_plugins.sort(key = operator.attrgetter('priority'))
     comment_plugins.sort(key = operator.attrgetter('priority'))
     report_plugins.sort(key = operator.attrgetter('priority'))
     print('Reddit plugins loaded')
-    print('Submissions: ', submission_plugins)
-    print('Comments: ', comment_plugins)
-    print('Reports: ', report_plugins)
+    print('├ Submissions: ', [plugin.name for plugin in submission_plugins])
+    print('├ Comments: ', [plugin.name for plugin in comment_plugins])
+    print('└ Reports: ', [plugin.name for plugin in report_plugins])
     return submission_plugins, comment_plugins, report_plugins
 
 def database_init():
@@ -98,7 +132,7 @@ def database_init():
 async def submission_loop(monitored_sub):
     subreddit = await reddit.subreddit(monitored_sub)
     async for submission in subreddit.stream.submissions(skip_existing=True):
-        print('new submission: ' + submission.permalink)
+        print('New submission: ' + submission.permalink)
         database.add_submission(submission)
         for plugin in submission_plugins:
             stop = await plugin.run_rules(monitored_sub=monitored_sub, submission=submission)
@@ -107,17 +141,16 @@ async def submission_loop(monitored_sub):
 async def comment_loop(monitored_sub):
     subreddit = await reddit.subreddit(monitored_sub)
     async for comment in subreddit.stream.comments(skip_existing=True):
-        print('new comment: ' + comment.permalink)
+        print('New comment: ' + comment.permalink)
         database.add_comment(comment)
         for plugin in comment_plugins:
-            print('Executing plugin ' + plugin.name + ' against ' + comment.permalink)
             stop = await plugin.run_rules(monitored_su=monitored_sub, comment=comment)
             if stop: break
             
 async def report_loop(monitored_sub):
     subreddit = await reddit.subreddit(monitored_sub)
     async for report in subreddit.mod.stream.reports(skip_existing=True, only = "submissions"):
-        print('new report: ' + report.permalink)
+        print('New report: ' + report.permalink)
         for plugin in report_plugins:
             stop = await plugin.run_rules(monitored_sub=monitored_sub, report=report)
             if stop: break   
@@ -125,7 +158,7 @@ async def report_loop(monitored_sub):
 async def edited_loop(monitored_sub):
     subreddit = await reddit.subreddit(monitored_sub)
     async for edit in subreddit.mod.stream.edited(skip_existing=True):
-        print('edited content: ' + edit.permalink)
+        print('New edited content: ' + edit.permalink)
         try:
             database.update_comment(author=edit.author.name, created_utc=edit.created_utc, body=edit.body)
         except:
@@ -140,6 +173,8 @@ async def main():
 if __name__ == "__main__":
     workpath = workpath_init()
     youtube = youtube_init()
+    youtube.get_yt_id = get_yt_id
+    youtube.get_yt_details = get_yt_details
     discord = discord_init()
     reddit, pushift, monitored_sub = reddit_init()
     database = database_init()
