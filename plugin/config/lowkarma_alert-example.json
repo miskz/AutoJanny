@@ -1,0 +1,5 @@
+{
+    "priority": "5",
+    "comment_lookback": 100,
+    "karma_threshold": -10
+}

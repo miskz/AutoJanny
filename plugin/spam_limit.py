@@ -5,19 +5,7 @@ from thefuzz import fuzz
 def plugin_config_init(workpath):
     config = os.path.join(workpath, 'plugin', 'config', 'spam_limit.json')
     with open(config, "r") as jsonfile:
-        plugin_config = json.load(jsonfile)
-        settings = {'priority': plugin_config['priority'],
-                    'mode': plugin_config['mode'],
-                    'views': plugin_config['views'],
-                    'age': plugin_config['age'],
-                    'repeatvid': plugin_config['repeatvid'],
-                    'repeattitle': plugin_config['repeattitle'],
-                    'report_newvid': plugin_config['report_newvid'],
-                    'report_repeatvid': plugin_config['report_repeatvid'],
-                    'report_unameurl': plugin_config['report_unameurl'],
-                    'report_repeattitle': plugin_config['report_repeattitle'],
-                    'removal_message': plugin_config['removal_message']
-                    }
+        settings = json.load(jsonfile)
     return settings
 
 class AutoJannyPlugin:
@@ -31,8 +19,18 @@ class AutoJannyPlugin:
     def __init__(self, workpath, reddit, youtube, **_):
         data = []
         self.settings = plugin_config_init(workpath)
+        self.priority = self.settings['priority']
         self.reddit = reddit
         self.youtube = youtube
+        
+    async def action_content(self, submission, report_message=None):
+        if self.mode == 'report':
+            await submission.report(self.settings['report_newvid'])
+        elif self.mode == 'remove':
+            await submission.mod.remove()
+            await submission.mod.send_removal_message(self.removal_message, type='public')
+        else:
+            print('No valid content action mode provided.')
         
     async def check_yt_selfpromo(self, submission):
         try:
@@ -47,11 +45,7 @@ class AutoJannyPlugin:
                             video['views'] < self.settings['views']
                             and video['age'] < self.settings['age']
                         ):
-                            if self.mode == 'report':
-                                await submission.report(self.settings['report_newvid'])
-                            else:
-                                await submission.mod.remove()
-                                await submission.mod.send_removal_message(self.removal_message, type='public')
+                            self.action_content(submission=submission, report_message=self.settings['report_newvid'])
                             return True
                         else:
                             return False
@@ -65,11 +59,7 @@ class AutoJannyPlugin:
                 len(submission.author.name) >= 8
                 and match > 80
             ):
-                if self.mode == 'report':
-                    await submission.report(self.settings['report_unameurl'])
-                else:
-                    await submission.mod.remove()
-                    await submission.mod.send_removal_message(self.removal_message, type='public')
+                self.action_content(submission=submission, report_message=self.settings['report_unameurl'])
                 return True
             else:
                 return False
@@ -92,11 +82,7 @@ class AutoJannyPlugin:
                         if channel == video['channel']:
                             counter += 1
                     if counter >= self.settings['repeatvid']:
-                        if self.mode == 'report':
-                            await submission.report(self.settings['report_repeatvid'])
-                        else:
-                            await submission.mod.remove()
-                            await submission.mod.send_removal_message(self.removal_message, type='public')
+                        self.action_content(submission=submission, report_message=self.settings['report_repeatvid'])
                         return True
             else:
                 return False
@@ -114,11 +100,7 @@ class AutoJannyPlugin:
                 if post.title == title:
                     counter =+ 1
             if counter >= self.settings['repeattitle']:
-                if self.mode == 'report':
-                    await submission.report(self.settings['report_newtitle'])
-                else:
-                    await submission.mod.remove()
-                    await submission.mod.send_removal_message(self.removal_message, type='public')
+                self.action_content(submission=submission, report_message=self.settings['report_newtitle'])
                 return True
             else:
                 return False
@@ -127,7 +109,7 @@ class AutoJannyPlugin:
         
     async def run_rules(self, submission, **_):
         stop = False
-        print('Running submission plugin ' + self.name)
+        print('Running submission rule: ' + self.name)
         if await self.check_yt_selfpromo(submission): stop = True
         if ~stop and await self.check_url_selfpromo(submission): stop = True
         if ~stop and await self.check_yt_continuous_promo(submission): stop = True

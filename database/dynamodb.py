@@ -130,9 +130,12 @@ class AutoJannyDatabase:
             }
         )
     
-    def search_comments(self, author, timeframe=31556926):
+    def search_comments(self, author, timeframe=31556926, limit=100):
         filtering_exp = Key('author').eq(author) & Key('created_utc').gte(int(time.time() - timeframe))
-        comments = self.comment_table.query(KeyConditionExpression=filtering_exp)
+        comments = self.comment_table.query(
+            KeyConditionExpression=filtering_exp,
+            Limit=limit
+            )
         return comments
     
     def get_comment(self, author=None, created_utc=None, id=None, **_):
@@ -149,9 +152,12 @@ class AutoJannyDatabase:
             print('Need to provide at least author&created_utc / author&id / id')
         return comment['Items']
     
-    def search_submissions(self, author, timeframe=31556926):
+    def search_submissions(self, author, timeframe=31556926, limit=100):
         filtering_exp = Key('author').eq(author) & Key('created_utc').gte(int(time.time() - timeframe))
-        submissions = self.submission_table.query(KeyConditionExpression=filtering_exp)
+        submissions = self.submission_table.query(
+            KeyConditionExpression=filtering_exp,
+            Limit = limit
+            )
         return submissions
     
     def get_submission(self, author=None, created_utc=None, id=None, **_):

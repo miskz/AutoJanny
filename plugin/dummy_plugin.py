@@ -4,8 +4,8 @@ import json
 def plugin_config_init(workpath):
     config = os.path.join(workpath, 'plugin', 'config', 'dummy_plugin.json')
     with open(config, "r") as jsonfile:
-        plugin_config = json.load(jsonfile)
-    return plugin_config['priority']   
+        settings = json.load(jsonfile)
+    return settings['priority']   
 
 class AutoJannyPlugin:
     
@@ -23,6 +23,6 @@ class AutoJannyPlugin:
         self.priority = plugin_config_init(workpath)
 
     async def run_rules(self, comment, **_):
-        stop = True
+        stop = False
         print(self.name + ': processed')
         return stop
