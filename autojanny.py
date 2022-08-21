@@ -8,7 +8,7 @@ import re
 from datetime import datetime, timezone
 import datefinder
 import asyncpraw
-import psaw
+import pmaw
 import googleapiclient.discovery
 import googleapiclient.errors
 from google.oauth2 import service_account
@@ -31,7 +31,7 @@ def reddit_init():
                          user_agent=reddit_config['user_agent'],
                          password=reddit_config['password'],
                          username=reddit_config['username'])
-    pushift = psaw.PushshiftAPI(reddit)
+    pushift = pmaw.PushshiftAPI(reddit)
     subreddit = reddit_config['subreddit']
     return reddit, pushift, subreddit
 

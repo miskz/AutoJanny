@@ -1,5 +1,6 @@
 import os
 import json
+import pmaw
 from time import time
 
 def plugin_config_init(workpath):
@@ -20,24 +21,28 @@ class AutoJannyPlugin:
 
     # possible input kwargs are reddit, pushift, youtube, discord, subreddit, submission, comment, workpath. datanbase
     # **_ discards unexpected arguments so that we don't have to store them for separate threads    
-    def __init__(self, workpath, **_):
+    def __init__(self, reddit, pushift, workpath, **_):
         data = []
+        self.reddit = reddit
+        self.pushift = pushift
         self.settings = plugin_config_init(workpath)
         self.priority = self.settings['priority']
 
-    async def run_rules(self, reddit, pushift, comment, **_):
+    async def run_rules(self, comment, **_):
         stop = False
-        self.reddit = reddit
-        self.pushift = pushift
-        await self.reddit.comment(comment.id)
         reference_time = time()
         
-        results = list(reddit.subreddit(comment.subreddit.display_name).search(('author:' + comment.author.name).format('user'), time_filter='month'))
+        results = []
+        subreddit = await self.reddit.subreddit(comment.subreddit.display_name)
+        async for submission in subreddit.search(('author:' + comment.author.name).format('user'), time_filter='month'):
+            results.append(submission.id)
+            
         if results != []:
             activity_found = True
         
-        if comment.submission.link_flair_template_id == self.settings['antibrigade_flair'] and not activity_found:
-            comments = pushift.search_comments(author=comment.author.name, subreddit=comment.subreddit.display_name)
+        submission = await comment.submission.load()
+        if comment.submission.link_flair_template_id == self.settings['antibrigade-flair'] and not activity_found:
+            comments = await self.pushift.search_comments(author=comment.author.name, subreddit=comment.subreddit.display_name)
             max_response_cache = 1
             cache = []
             for subcomment in comments:
