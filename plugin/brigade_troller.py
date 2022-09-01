@@ -1,7 +1,7 @@
 import os
 import json
-import pmaw
 from time import time
+from datetime import datetime
 
 def plugin_config_init(workpath):
     config = os.path.join(workpath, 'plugin', 'config', 'brigade-troller.json')
@@ -27,46 +27,61 @@ class AutoJannyPlugin:
         self.pushift = pushift
         self.settings = plugin_config_init(workpath)
         self.priority = self.settings['priority']
-
+ 
     async def run_rules(self, comment, **_):
         stop = False
-        reference_time = time()
-        
+        activity_found = False
+        stop_reason = ''
         results = []
-        subreddit = await self.reddit.subreddit(comment.subreddit.display_name)
-        async for submission in subreddit.search(('author:' + comment.author.name).format('user'), time_filter='month'):
-            results.append(submission.id)
-            
-        if results != []:
-            activity_found = True
         
-        submission = await comment.submission.load()
-        if comment.submission.link_flair_template_id == self.settings['antibrigade-flair'] and not activity_found:
-            comments = await self.pushift.search_comments(author=comment.author.name, subreddit=comment.subreddit.display_name)
-            max_response_cache = 1
-            cache = []
-            for subcomment in comments:
-                if (
-                    subcomment.submission.id != comment.submission.id
-                    or reference_time - subcomment.created_utc > 86400
-                ):
-                    cache.append(subcomment)
-                if len(cache) >= max_response_cache:
-                    timediff = reference_time - subcomment.created_utc
-                    break
+        await comment.submission.load()
+        if hasattr(comment.submission, 'link_flair_template_id'):
+            if comment.submission.link_flair_template_id == self.settings['antibrigade_flair']:
+                print('antibrigade flair detected')
+                
+                subreddit = await self.reddit.subreddit(comment.subreddit.display_name)
+                async for submission in subreddit.search(('author:' + comment.author.name).format('user'), time_filter='year'):
+                    print('checking posts')
+                    results.append(submission.id)
+                    
+                if results == []:
+                    activity_found = False
+                    print('found posts')
+                    
+                if not activity_found:
+                    reference_time = time()
+                    threshold = time() - self.settings['time_threshold']
+                    results = []
+                    print('starting comment lookback')
+                    author = await self.reddit.redditor(comment.author.name)
+                    latest_subreddit_activity = 0
+                    oldest_reddit_activity = time()
+                    
+                    async for subcomment in author.comments.new(limit=100):
+                        if reference_time - subcomment.created_utc > 86400:
+                            if latest_subreddit_activity < subcomment.created_utc and subcomment.subreddit.display_name == comment.subreddit.display_name:
+                                latest_subreddit_activity = subcomment.created_utc
+                            elif oldest_reddit_activity > subcomment.created_utc:
+                                oldest_reddit_activity = subcomment.created_utc
 
-            if len(cache) < 1:
-                stop_reason = self.settings['no-activity-text']
-                activity_found = False
-            elif timediff > self.settings['time_threshold']:
-                stop_reason = self.settings['no-recent-activity-text'] + str(int(timediff // 86400)) + self.settings['time-unit']
-                activity_found = False
-            else:
-                activity_found = True
-
-        if not activity_found:
-            reply = comment.reply(self.settings['reply-header'] + stop_reason + self.settings['reply-footer'])
-            reply.mod.distinguish()   
-        
+                    if latest_subreddit_activity > self.settings['time_threshold']:
+                        activity_found = True
+                        
+                    print('oldest reddit activity' + datetime.utcfromtimestamp(oldest_reddit_activity).strftime('%d/%m/%Y'))
+                    print('latest subreddit activity' + datetime.utcfromtimestamp(latest_subreddit_activity).strftime('%d/%m/%Y'))
+                    
+                if latest_subreddit_activity == 0 and oldest_reddit_activity < reference_time - 10:
+                    stop_reason = self.settings['no_activity_text']
+                elif latest_subreddit_activity == 0:
+                    stop_reason = self.settings['no_activity_text']
+                elif latest_subreddit_activity < self.settings['time_threshold']:
+                    cutoff_date = reference_time - self.settings['time_threshold']
+                    stop_reason = self.settings['no_activity_within_threshold'] + datetime.utcfromtimestamp(cutoff_date).strftime('%d/%m/%Y')
+                
+                if not activity_found:
+                    print('no activity found')
+                    #reply = await comment.reply(self.settings['reply_header'] + stop_reason + self.settings['reply_footer'])
+                    #await reply.mod.distinguish()   
+               
         print(self.name + ': processed')
         return stop
